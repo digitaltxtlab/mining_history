@@ -1,1 +1,405 @@
+kill
+wd = 'C:\Users\KLN\Documents\textAnalysis\bible\newTestament';
+ddFull = 'C:\Users\KLN\Documents\textAnalysis\bible\newTestament\ntTotal';
 
+cd(wd)
+%% 
+% make collected NT
+ddFull = 'C:\Users\KLN\Documents\textAnalysis\bible\newTestament\ntTotal';
+cd(ddFull)
+filename = getAllFiles(ddFull);
+% make empty file
+fid = fopen( 'ntMain.txt', 'wt' );
+fclose(fid);
+% make copy command for dos
+strmain = 'copy ntMain.txt';
+for i = 1:length(filename);
+str = filename(i);
+e = regexp(str,'\\');e  = cell2mat(e); e = e(end)+1;
+filename{i}= str{1}(e:end);
+strmain = strcat(strmain,'+',filename{i});
+end
+system(strmain)
+%
+filename = getAllFiles(ddFull);
+doc = fileread(filename{end});
+% delete collected NT file
+delete('ntMain.txt')
+% preprocess NT
+temp = strtrim(regexprep(doc,'([^\D]+)',' '));% remove numbers
+temp = strtrim(regexprep(temp,'([^\w]+)',' '));% non-alphabetic characters
+temp = regexprep(['''',temp,''''],' ',''','''); % insert '' and , around alphabetic sequence
+evalc(['tokens = {',temp,'}']); % assign tokens
+doctokens = lower(tokens);
+% extract word frequencies
+words = length(doctokens);
+[vocab,void,index] = unique(doctokens);
+vocabwords = length(vocab);
+frequencies = hist(index,vocabwords);
+[ranked_frequencies,idx] = sort(frequencies,'descend');
+ranked_vocabulary = vocab(idx);
+%% make heaps' distribution
+heapslaw = zeros(words,2);
+for k = 1:words
+    if mod(k,1000) == 0;
+        disp(k);
+    end
+    heapslaw(k,1) = k;    
+    heapslaw(k,2) = length(unique(doctokens(1:k)));
+end
+save('heapDist.mat','heapslaw')
+%% Burstiness, Zipf and Heaps for figures 1
+
+% ### Zipf
+hf = figure(1);
+
+set(hf,'Color',[1 1 1],'Name','Burstiness of NT')
+set(hf,'Position', [100, 100, 1049*.5, 895*.5])
+subplot(223)
+h1 = scatter(1:vocabwords,ranked_frequencies);
+h1.Marker = '.'; h1.MarkerEdgeColor = [0 0 0];
+set(gca,'xscale','log','yscale','log')
+limits = axis; axis([1,vocabwords,limits(3:4)])
+xlabel('Word rank')
+ylabel('Word Frequency')
+% ### Heaps
+cd(wd)
+load('heapDist.mat')
+subplot(224),
+h3 = scatter(heapslaw(:,1),heapslaw(:,2));
+h3.Marker = '.'; h3.MarkerEdgeColor = [0 0 0];
+h3.SizeData = 6;
+xlabel('Collection size')
+ylabel('Vocabulary size')
+set(gca,'xticklabel',{'0' '1000' '2000'})
+% ### burstiness
+%
+% for single word (publication)
+subplot(221)
+aword = 'jesus';
+intervals = diff(find(strcmp(doctokens,aword)));
+nvals = length(intervals);
+h1 = plot(1:nvals,intervals);
+h1.Color = [.5 .5 .5]; 
+h2 = hline(mean(intervals));
+h2.LineWidth = 2; h2.LineStyle = ':'; h2.Color = [0 0 0];
+limits = axis; axis([1,nvals,0,4000])
+xlabel('Consecutive occurrences')
+ylabel('Word distance')
+box off
+subplot(222)
+h4 = histogram(intervals);
+h4.NumBins = 100;
+h4.BinWidth = 100;
+h4.EdgeColor = [1 1 1];
+h4.FaceColor = [0 0 0];
+xlim([-100 3100]); ylim([-10 600])
+xlabel('Word distance')
+ylabel('Frequency')
+%h5 = vline(75);
+%h5.LineWidth = 2; h5.LineStyle = ':'; h5.Color = [0 0 0];
+box off
+plotCorrect
+%saveFig(strcat(wd,'\figure1.tiff'))
+%% for multiple words
+twowords = {'jesus' 'wine'};
+%%retrieve ranking positions
+find(strcmp(ranked_vocabulary,twowords{1}))
+find(strcmp(ranked_vocabulary,twowords{2}))
+hf = figure(4);
+set(hf,'Color',[1 1 1],'Name','Burstiness of NT')
+% generate the plots
+for k = 1:2
+    %k = 1
+    intervals = diff(find(strcmp(doctokens,twowords{k})));
+    subplot(2,1,k), nvals = length(intervals);
+    plot(1:nvals,intervals,'-r',[1,nvals], ones(1,2)*mean(intervals),'--k');
+    limits = axis; axis([1,nvals,limits(3:4)])
+end
+%% figure 4 unsupervised learning
+load('clval.mat')
+load('ntDtm.mat')
+figure(1)
+subplot(221),
+x = clpcavals;
+c = [0 0 0; 0.6 0.6 0.6; 0.8 0.8 0.8];
+f = {'square' '<' 'o'};
+hold on
+for i = 1:max(x(:,3))
+    h2 = scatter(x(x(:,3)==i,1),x(x(:,3)==i,2));
+    h2.Marker = f{i}; 
+    h2.MarkerEdgeColor = [1 1 1];
+    h2.MarkerFaceColor = c(i,:);
+    h2.SizeData = 100;
+end
+xlabel('Coordinate 1');
+ylabel('Coordinate 2');
+matt = csvread('matthewTopics.csv',1,1)+rand(20,1)*.01;
+subplot(223),h3 = bar(matt);
+h3.EdgeColor = [1 1 1]; h3.FaceColor = [0 0 0];
+xlim([0.1 20.9]); box off; xlabel('Topic'); ylabel('Posterior_{Matthew}')
+%
+hold on
+% text(clpcavals(:,1)+.02,clpcavals(:,2),cldocs)
+tree = linkage(dtm,'average','cosine');
+figure(1)
+subplot(122),
+h1 = dendrogram(tree,'Labels',docs,'Orientation','left','ColorThreshold','default');
+set(h1,'LineWidth',3);
+xlabel('Height')
+plotCorrect
+col12(2)
+
+% saveFig(strcat(wd,'\unsupervisedNt.tif'))
+% saveFig(strcat(wd,'\unsupervisedNtGrey.tif'))
+% saveFig(strcat(wd,'\unsupervisedNtGrey2.tif'))
+%% clustegram for unsupervised learning k-means
+d = pdist(dtm,'cosine');
+d = squareform(d);
+figure(2)
+h2 = clustergram(d);
+set(h2,'RowLabels',docs) 
+set(h2,'ColumnLabels',docs) 
+set(h2,'Colormap',bone)
+
+a = findobj(gcf); % get the handles associated with the current figure
+allaxes=findall(a,'Type','axes');
+alllines = findall(a,'Type','line');
+alltext = findall(a,'Type','text');
+set(allaxes,'FontName','Times','FontWeight','Bold','LineWidth',1.5,...
+'FontSize',12);
+%% keywords
+keywords = {'jesus' 'lord' 'god' 'man'};
+%%retrieve ranking positions
+for i = 1:length(keywords)
+    ii = find(strcmp(ranked_vocabulary,keywords{i}));
+    ranked_frequencies(ii)
+end
+% keyword distribution in one text
+doc1 = fileread(filename{22});% matthew
+% preprocess NT
+temp1 = strtrim(regexprep(doc1,'([^\D]+)',' '));% remove numbers
+temp1 = strtrim(regexprep(temp1,'([^\w]+)',' '));% non-alphabetic characters
+temp1 = regexprep(['''',temp1,''''],' ',''','''); % insert '' and , around alphabetic sequence
+evalc(['tokens1 = {',temp1,'}']); % assign tokens
+doctokens1 = lower(tokens1);
+% extract word frequencies
+words1 = length(doctokens1);
+[vocab1,void1,index1] = unique(doctokens1);
+vocabwords1 = length(vocab1);
+frequencies1 = hist(index1,vocabwords1);
+[ranked_frequencies1,idx1] = sort(frequencies1,'descend');
+ranked_vocabulary1 = vocab1(idx1);
+
+plot(strcmp('jesus', doctokens1))
+hold on
+plot(strcmp('christ', doctokens1),'r')
+%%
+v = strcmp('jesus', doctokens1);
+scatter(1:length(v),v,'.k')
+hold on 
+v = strcmp('god', doctokens1)*.9;
+scatter(1:length(v),v,'.r')
+%% count based-evaluation figure 3
+keywords = {'jesus' 'christ' 'son' 'god' 'ghost' 'devil'};
+V = zeros(length(keywords),length(doctokens1));
+W = zeros(length(keywords),1);
+c = bone(length(keywords) + 1); c = c(1:end-1,:);
+hf = figure(1);
+    set(hf,'PaperUnits','centimeters')
+    xSize = 17; ySize = 12;
+    xLeft = (21-xSize)/2; yTop = (30-ySize)/2;
+    set(hf,'PaperPosition',[xLeft yTop xSize ySize])
+    set(hf,'Position',[0 0 xSize*50 ySize*25])
+
+
+%xSize = 17; ySize = 12;
+set(hf,'Color',[1 1 1],'Name','Count-based evaluation')
+%set(hf,'Position', [100, 100, 1049*.8, 895*.25])
+
+% type-token
+filename = getAllFiles(ddFull);
+idx = regexp(filename{1},'\\');idx = idx(end)+1;
+docname = cell(length(filename),1); for i = 1:length(filename); ...
+        docname{i} = filename{i}(idx:end);end; 
+docname = regexprep(docname,'\.txt','');
+typ = sum(to ~= 0,2);
+tok = sum(to,2);
+TTR = (typ./tok)*100;
+figure(1)
+subplot(212)
+h = bar(TTR);
+h.FaceColor = [0 0 0];
+ylabel('TTR%');
+set(gca,'xtick',1:length(docname),'xticklabel',docname','xticklabelrotation',45)
+plotCorrect
+xlim([0.1 27.9])
+box off
+xlabel('Book')
+% length issue
+[r p] = corrcoef([typ tok TTR]);
+
+% keyword distribution
+subplot(221),
+for i = 1:length(keywords)
+    w = i/length(keywords);
+    v = strcmp(keywords(i), doctokens1)*w;
+    V(i,:) = v;
+    W(i,1) = w;
+    hold on
+    h = scatter(1:length(v),v,'square','filled');
+    % h.MarkerFaceColor = c(i,:);
+    h.MarkerFaceColor = [0 0 0];
+    h.MarkerEdgeColor = [0 0 0];
+    h.SizeData = 20;
+    % uppercase first letter for plot
+    idx = regexp([' ' keywords{i}],'(?<=\s+)\S','start')-1;
+    keywords{i}(idx) = upper(keywords{i}(idx));
+    % add keyword
+    h2 = text(0-5000,max(v)+.01,keywords(i));
+    h2.FontName = 'Times'; h2.FontSize = 12; h2.FontWeight = 'bold';
+    % h2.Color = c(i,:);
+    h2.Color = [0 0 0];
+end
+set(gca,'ytick',W,'yticklabel',keywords)
+set(gca,'xtick',[1 10000 20000],'xticklabel',{1 10000 20000})
+ylim([.1 max(W)+.1])
+xlim([0 length(v)+1])
+xlabel('Word position')
+ylabel('Keyword')
+set(gca,'YColor','w')
+% ## need cross correlation
+    % V = double(V > 0);
+    % [r p] = corrcoef(V')
+    
+% NER
+cd(wd)
+load('histRelativeMat.mat')
+nerW = str2double(histRelativeMat(2:end,2:end));
+%fh = figure(1);
+subplot(222),
+colormap(bone)
+h1 = barh(nerW','stacked','linewidth',2);
+hl = legend(histRelativeMat(2:end,1),'location','NorthEastOutside');
+hl.FontSize = 8;
+set(gca,'yticklabel',{'Pers' 'Org' 'Loc' 'Char'})
+xlim([0 1.01])
+ylim([0 5])
+xlabel('Relative frequency')
+legend boxoff
+box off
+col12(2)   
+    
+plotCorrect
+%saveFig(strcat(wd,'/countEvaluation.tiff'))
+%saveFig(strcat(wd,'/countEvaluationNolegend.tiff'))
+%% ### relations between words
+% build dtm
+[dtm, vocabfull, docstokens, filename,~,~, dtmbi] = tdmVanilla(ddFull);
+% ### co-occurrence matrix by transposed multiplication from binary dtm
+dtmbi = sparse(double(dtmbi));
+comat = dtmbi'*dtmbi;
+% co-occurence of two words
+i1 = strmatch({'jesus'},vocabfull,'exact'); 
+i2 = strmatch({'said'},vocabfull,'exact');
+probe = comat(i1,i2);
+comat(i1,i1)    
+% comat is sparse
+nonsparse = sum(sum(comat > 0))/prod(size(comat));
+% ### pointwise mutual information (PMI)
+% individual word probabilities in corpus of books
+p1wordbook = diag(comat)/length(filename);
+% probability of encountering individual probes in books
+disp(p1wordbook(i1))
+    % book not containing 'jesus'
+    idx = find(dtm(:,i1) == 0);
+    disp(filename(idx))
+disp(p1wordbook(i2))
+% joint probabilities for words co-occurring in more than 10 books (n = 2)
+[wa,wb,rawcount] = find(triu((comat > 25).*comat,1));
+p2wordbook = rawcount/length(filename);
+% compute pointwise mutual information
+minfobook = log2(p2wordbook./(p1wordbook(wa).*p1wordbook(wb)));
+% sort mutual information
+[sortminfo,sortindex] = sort(minfobook,'descend');
+% copy all wa and wb into char array according to I(wa,wb) order
+tempa = char(vocabfull{wa(sortindex)});
+tempb = char(vocabfull{wb(sortindex)});
+% merge into single char array
+tab = ones(size(tempa,1),1)*' '; 
+temp = [tab,tempa,tab,tempb,tab];
+% list the first n values for tempa, tempb and sortminfo
+n = 100;
+disp('-> Pairs of words with largest mutual information')
+disp(' WORDa         WORDb          I(WORDa,WORDb)')
+for k = 1:n;disp(sprintf('%s%6.4f',temp(k,:),sortminfo(k)));end
+% list the last n values for tempa, tempb and sortminfo
+n = 10;
+disp('-> Pairs of words with lowest mutual information')
+disp(' WORDa         WORDb          I(WORDa,WORDb)')
+for k = 1:n;disp(sprintf('%s%6.4f',temp(end-k+1,:),sortminfo(end-k+1)));end
+% sort information scores as they depart from zero
+[void,absindex] = sort(abs(sortminfo));
+% list the n words for tempa, tempb and sortminfo closest to zero
+n = 10;
+disp('-> Pairs of words with mutual information close to zero')
+disp(' WORDa         WORDb          I(WORDa,WORDb)')
+for k = 1:n
+    disp(sprintf('%s%6.4f',temp(absindex(k),:),sortminfo(absindex(k))));
+end
+% calculaions for any two words
+wStr = {'jesus' 'said'};% search words
+rawOccur = diag(comat);
+rawProb = diag(comat)/length(filename);
+wO = zeros(size(wStr))';% word occurrence
+wP = wO;% word probabilities 
+inventory = vocabfull';
+for i = 1:length(wStr)
+    index(i) = find(strcmp(vocabfull,wStr{i}));
+    wO(i,1) = rawOccur(index(i));
+    wP(i,1) = rawProb(index(i)); 
+end
+wO(3,1) = comat(index(1),index(2)); % raw co-occurrence
+wP(3,1) = comat(index(1),index(2))/length(filename); % joint probability 
+wP(4,1) = wP(3)/wP(2);% wStr{1} conditioned on wStr{2}
+wP(5,1) = wP(3)/wP(1);% wStr{2} conditioned on wStr{1}
+wP(6,1) = log2(wP(3)/(wP(1)*wP(2)));% mutual information measured in bit
+disp(wO)
+disp(wP)
+% ### geometric
+% ##correlation between word vectors
+i1 = strmatch({'jesus'},vocabfull,'exact'); 
+i2 = strmatch({'said'},vocabfull,'exact');
+w1 = dtm(:,i1);
+w2 = dtm(:,i2);
+% correlation distance between two words
+[r p] = corrcoef(w1,w2);
+% using a distance matrix
+dmatcor = squareform(pdist(dtm','correlation'));
+r = 1-dmatcor(i2,i1);  
+% ## cosine distance
+%One minus the cosine of the included angle between points (treated as vectors).
+dmatcos = squareform(pdist(dtm','cosine'));
+% cosine distance between two words
+cosang = 1-dmatcos(i2,i1);  
+%% numerical prediction
+[dtm, vocabfull, docstokens, filename] = tdmVanilla(ddFull);
+% ## repsonse variable
+i1 = strmatch({'jesus'},vocabfull,'exact'); 
+i2 = strmatch({'said'},vocabfull,'exact');
+% document length
+N = zeros(size(docstokens));
+for i = 1:length(N); N(i) = length(docstokens{i});end;
+% relative frequencies
+j = dtm(:,i1)./N;
+s = dtm(:,i2)./N;
+% 'jesus + said' 
+y = j+s;
+% predictor
+metaclass = {'paul','nonpaul','nonpaul','paul','paul','paul','nonpaul', ...
+    'nonpaul','paul','paul','nonpaul','history','paul','paul','paul', ...
+    'nonpaul','nonpaul','history','nonpaul','history','history', ...
+    'history','paul','paul','nonpaul','paul','paul'};
+x1 = categorical(metaclass);
+% model
+mdl1 = fitlm(x1,y);
