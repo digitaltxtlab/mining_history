@@ -4,6 +4,6 @@ code for example from manuscript 'Mining Past Minds – Data-Intensive Knowledge
 ## Collaboators <br/>
 Period  | Name
 ------------- | -------------
-2015 -  | Kristoffer L. Nielbo
-2016 -  | Ryan Nichols
-2016 -  | Edward Slingerland
+2015 -  | a
+2016 -  | b
+2016 -  | c
