@@ -1,4 +1,4 @@
-kill
+clc; clear
 wd = 'C:\Users\KLN\Documents\textAnalysis\bible\newTestament';
 ddFull = 'C:\Users\KLN\Documents\textAnalysis\bible\newTestament\ntTotal';
 
